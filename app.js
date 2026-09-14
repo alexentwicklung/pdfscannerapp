@@ -6,12 +6,22 @@ const app = {
   ctx: null,
   dragPoint: null,
   dragRadius: 30,
+  debugLogs: [],
 
+  // DIN-Größen in Pixeln bei 300 DPI (für Bilder)
   DIN_SIZES: {
     A3: [3508, 4961],
     A4: [2480, 3508],
     A5: [1748, 2480],
     A6: [1240, 1748]
+  },
+
+  // DIN-Größen in PDF-Punkten (72 DPI) - eigene Definition, unabhängig von pdf-lib
+  DIN_POINTS: {
+    A3: [841.89, 1190.55],
+    A4: [595.28, 841.89],
+    A5: [419.53, 595.28],
+    A6: [297.64, 419.53]
   },
 
   init() {
@@ -25,33 +35,64 @@ const app = {
     this.canvas.addEventListener("touchmove", (e) => { e.preventDefault(); this.handleMove(e.touches[0]); });
     this.canvas.addEventListener("touchend", () => this.handleEnd());
 
+    this.log("App init");
+    this.log("PDFLib verfügbar: " + (typeof window.PDFLib !== "undefined"));
+    this.log("OpenCV verfügbar: " + (typeof window.cv !== "undefined"));
     this.updateStatus();
+  },
+
+  log(msg, type = "info") {
+    const time = new Date().toLocaleTimeString();
+    const entry = `[${time}] ${msg}`;
+    this.debugLogs.push({ text: entry, type });
+    console.log(entry);
+
+    const debugBody = document.getElementById("debugBody");
+    if (debugBody) {
+      const div = document.createElement("div");
+      div.textContent = entry;
+      div.className = type;
+      debugBody.appendChild(div);
+      debugBody.scrollTop = debugBody.scrollHeight;
+    }
+  },
+
+  toggleDebug() {
+    const panel = document.getElementById("debugPanel");
+    if (panel) panel.classList.toggle("open");
   },
 
   updateStatus() {
     const badge = document.getElementById("statusBadge");
+    if (!badge) return;
     if (!navigator.onLine) {
       badge.textContent = "Offline";
       badge.className = "status-badge offline";
     } else if (this.cvReady) {
       badge.textContent = "Bereit";
       badge.className = "status-badge ready";
+    } else {
+      badge.textContent = "Canvas-Modus";
+      badge.className = "status-badge ready";
     }
   },
 
   onOpenCvReady() {
     this.cvReady = true;
+    this.log("OpenCV.js geladen");
     this.updateStatus();
-    console.log("OpenCV.js geladen");
   },
 
   showProcessing(text) {
-    document.getElementById("processing").style.display = "flex";
-    document.getElementById("processingText").textContent = text;
+    const el = document.getElementById("processing");
+    const txt = document.getElementById("processingText");
+    if (el) el.style.display = "flex";
+    if (txt) txt.textContent = text;
   },
 
   hideProcessing() {
-    document.getElementById("processing").style.display = "none";
+    const el = document.getElementById("processing");
+    if (el) el.style.display = "none";
   },
 
   startCamera() {
@@ -70,6 +111,7 @@ const app = {
   handleFileSelect(e) {
     const file = e.target.files[0];
     if (!file) return;
+    this.log("Datei ausgewählt: " + file.name + " (" + Math.round(file.size / 1024) + " KB)");
     const reader = new FileReader();
     reader.onload = (evt) => this.loadImage(evt.target.result);
     reader.readAsDataURL(file);
@@ -78,15 +120,20 @@ const app = {
   loadImage(src) {
     const img = new Image();
     img.onload = () => {
+      this.log("Bild geladen: " + img.width + "x" + img.height);
       this.showProcessing("Erkenne Dokument...");
       setTimeout(() => this.autoDetect(img), 100);
+    };
+    img.onerror = () => {
+      this.log("Bild konnte nicht geladen werden", "err");
+      alert("Bild konnte nicht geladen werden");
     };
     img.src = src;
   },
 
   autoDetect(img) {
-    if (!this.cvReady || !window.cv) {
-      console.warn("OpenCV nicht bereit, überspringe Auto-Detect");
+    if (!this.cvReady || !window.cv || !window.cv.imread) {
+      this.log("OpenCV nicht bereit, nutze Canvas-Fallback");
       this.hideProcessing();
       this.openEditor(img, [
         { x: 50, y: 50 },
@@ -164,13 +211,16 @@ const app = {
           { x: img.width - 50, y: img.height - 50 },
           { x: 50, y: img.height - 50 }
         ];
+        this.log("Kein Dokument erkannt, nutze Bildränder");
+      } else {
+        this.log("Dokument erkannt mit " + maxArea + " px²");
       }
 
       this.hideProcessing();
       this.openEditor(img, docContour);
 
     } catch (err) {
-      console.error("Auto-Detect Fehler:", err);
+      this.log("Auto-Detect Fehler: " + err.message, "err");
       this.hideProcessing();
       this.openEditor(img, [
         { x: 50, y: 50 },
@@ -214,7 +264,9 @@ const app = {
         Math.hypot(corners[3].x - corners[0].x, corners[3].y - corners[0].y)
       )
     };
-    document.getElementById("dinSelect").value = "auto";
+    this.log("Editor geöffnet, Format: " + this.currentEdit.detectedFormat);
+    const select = document.getElementById("dinSelect");
+    if (select) select.value = "auto";
     document.getElementById("startScreen").style.display = "none";
     document.getElementById("editorScreen").style.display = "flex";
     this.drawEditor();
@@ -357,10 +409,13 @@ const app = {
   confirmPage() {
     if (!this.currentEdit) return;
     this.showProcessing("Transformiere & optimiere...");
+    this.log("confirmPage gestartet");
 
     setTimeout(() => {
       try {
         const result = this.transformAndEnhance();
+        this.log("Transformation erfolgreich: " + result.format + " " + result.width + "x" + result.height);
+
         this.pages.push({
           id: Date.now(),
           src: result.dataUrl,
@@ -376,31 +431,38 @@ const app = {
         document.getElementById("exportBar").style.display = "flex";
         this.hideProcessing();
       } catch (err) {
-        console.error("Fehler in confirmPage:", err);
+        this.log("Fehler in confirmPage: " + err.message, "err");
+        console.error(err);
         this.hideProcessing();
         alert("Fehler bei Verarbeitung: " + err.message);
       }
     }, 100);
   },
 
-  // ========== HAUPTFUNKTION MIT FALLBACK ==========
   transformAndEnhance() {
     const { image, corners, detectedFormat } = this.currentEdit;
-    const mode = document.getElementById("modeSelect").value;
-    const dinSelect = document.getElementById("dinSelect").value;
-    const format = dinSelect === "auto" ? detectedFormat : dinSelect;
-    const [targetW, targetH] = this.DIN_FORMATS[format];
+    const modeSelect = document.getElementById("modeSelect");
+    const dinSelect = document.getElementById("dinSelect");
+    const mode = modeSelect ? modeSelect.value : "scores";
+    const dinValue = dinSelect ? dinSelect.value : "auto";
+    const format = dinValue === "auto" ? detectedFormat : dinValue;
+    const [targetW, targetH] = this.DIN_SIZES[format];
 
-    // Versuche zuerst OpenCV (beste Qualität)
+    this.log("transformAndEnhance: mode=" + mode + " format=" + format + " target=" + targetW + "x" + targetH);
+
+    // Versuche OpenCV
     if (this.cvReady && window.cv && window.cv.imread) {
       try {
-        return this.transformWithOpenCV(image, corners, targetW, targetH, format, mode);
+        const result = this.transformWithOpenCV(image, corners, targetW, targetH, format, mode);
+        this.log("OpenCV-Transformation erfolgreich");
+        return result;
       } catch (err) {
-        console.warn("OpenCV-Pfad fehlgeschlagen, nutze Canvas-Fallback:", err);
+        this.log("OpenCV fehlgeschlagen: " + err.message + ", nutze Canvas-Fallback", "warn");
       }
     }
 
-    // Fallback: Canvas-only (immer funktioniert)
+    // Canvas-Fallback
+    this.log("Nutze Canvas-Fallback");
     return this.transformWithCanvas(image, corners, targetW, targetH, format, mode);
   },
 
@@ -465,17 +527,18 @@ const app = {
     }
   },
 
-  // ========== CANVAS FALLBACK (kein OpenCV nötig) ==========
   transformWithCanvas(image, corners, targetW, targetH, format, mode) {
-    // Bounding Box der Ecken berechnen
+    this.log("Canvas-Fallback: Zuschneiden auf " + targetW + "x" + targetH);
+
+    // Bounding Box der Ecken
     const xs = corners.map((c) => c.x);
     const ys = corners.map((c) => c.y);
     const minX = Math.max(0, Math.floor(Math.min(...xs)));
     const minY = Math.max(0, Math.floor(Math.min(...ys)));
     const maxX = Math.min(image.width, Math.ceil(Math.max(...xs)));
     const maxY = Math.min(image.height, Math.ceil(Math.max(...ys)));
-    const cropW = maxX - minX;
-    const cropH = maxY - minY;
+    const cropW = Math.max(1, maxX - minX);
+    const cropH = Math.max(1, maxY - minY);
 
     // Quell-Canvas: Zuschneiden
     const srcCanvas = document.createElement("canvas");
@@ -490,11 +553,9 @@ const app = {
     dstCanvas.height = targetH;
     const dstCtx = dstCanvas.getContext("2d");
 
-    // Weißer Hintergrund (falls das Bild nicht ganz passt)
     dstCtx.fillStyle = "#ffffff";
     dstCtx.fillRect(0, 0, targetW, targetH);
 
-    // Skalieren und zentrieren (proportional)
     const scale = Math.min(targetW / cropW, targetH / cropH);
     const drawW = cropW * scale;
     const drawH = cropH * scale;
@@ -503,7 +564,6 @@ const app = {
 
     dstCtx.drawImage(srcCanvas, drawX, drawY, drawW, drawH);
 
-    // Sanfte Bildverbesserung mit Canvas API
     if (mode === "scores" || mode === "document") {
       this.enhanceCanvas(dstCtx, targetW, targetH, mode);
     }
@@ -521,15 +581,12 @@ const app = {
     const data = imgData.data;
 
     if (mode === "document") {
-      // Graustufen + Kontrast für reine Dokumente
       for (let i = 0; i < data.length; i += 4) {
         const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
-        // Kontrast + Helligkeit
         const val = Math.min(255, Math.max(0, (gray - 128) * 1.35 + 128 + 5));
         data[i] = data[i + 1] = data[i + 2] = val;
       }
     } else {
-      // Noten-Modus: nur leichter Kontrast & Helligkeit pro Kanal
       for (let i = 0; i < data.length; i += 4) {
         for (let c = 0; c < 3; c++) {
           const val = Math.min(255, Math.max(0, (data[i + c] - 128) * 1.25 + 128 + 8));
@@ -541,17 +598,14 @@ const app = {
     ctx.putImageData(imgData, 0, 0);
   },
 
-  // ========== OPENCV ENHANCEMENT (nur wenn verfügbar) ==========
   enhanceScores(imgMat) {
     const cv = window.cv;
     let adjusted = null, blurred = null, sharpened = null;
     try {
       adjusted = new cv.Mat();
       imgMat.convertTo(adjusted, cv.CV_8UC3, 1.25, 8);
-
       blurred = new cv.Mat();
       cv.GaussianBlur(adjusted, blurred, new cv.Size(0, 0), 1.5);
-
       sharpened = new cv.Mat();
       cv.addWeighted(adjusted, 1.2, blurred, -0.2, 0, sharpened);
       return sharpened;
@@ -571,10 +625,8 @@ const app = {
     try {
       gray = new cv.Mat();
       cv.cvtColor(imgMat, gray, cv.COLOR_BGR2GRAY);
-
       adjusted = new cv.Mat();
       gray.convertTo(adjusted, cv.CV_8UC1, 1.35, 5);
-
       result = new cv.Mat();
       cv.cvtColor(adjusted, result, cv.COLOR_GRAY2BGR);
       return result;
@@ -590,6 +642,7 @@ const app = {
 
   renderPagesStrip() {
     const strip = document.getElementById("pagesStrip");
+    if (!strip) return;
     const addBtn = strip.querySelector(".add-page-btn");
     strip.innerHTML = "";
 
@@ -604,49 +657,65 @@ const app = {
       strip.appendChild(div);
     });
 
-    strip.appendChild(addBtn);
+    if (addBtn) strip.appendChild(addBtn);
   },
 
   deletePage(idx) {
     this.pages.splice(idx, 1);
     if (this.pages.length === 0) {
-      document.getElementById("exportBar").style.display = "none";
+      const bar = document.getElementById("exportBar");
+      if (bar) bar.style.display = "none";
     }
     this.renderPagesStrip();
   },
 
   previewPage(idx) {
-    document.getElementById("previewImg").src = this.pages[idx].src;
-    document.getElementById("previewModal").style.display = "flex";
+    const img = document.getElementById("previewImg");
+    const modal = document.getElementById("previewModal");
+    if (img) img.src = this.pages[idx].src;
+    if (modal) modal.style.display = "flex";
   },
 
   closePreview() {
-    document.getElementById("previewModal").style.display = "none";
+    const modal = document.getElementById("previewModal");
+    if (modal) modal.style.display = "none";
   },
 
   clearAll() {
     if (!confirm("Alle Seiten löschen?")) return;
     this.pages = [];
     this.renderPagesStrip();
-    document.getElementById("exportBar").style.display = "none";
+    const bar = document.getElementById("exportBar");
+    if (bar) bar.style.display = "none";
   },
 
-  // ========== PDF EXPORT MIT SPEICHERORT ==========
   async exportPDF() {
     if (this.pages.length === 0) return;
     this.showProcessing("Erzeuge PDF...");
+    this.log("PDF-Export gestartet, Seiten: " + this.pages.length);
 
     try {
-      const { PDFDocument, PageSizes } = PDFLib;
+      // Prüfe ob PDFLib verfügbar
+      if (typeof window.PDFLib === "undefined") {
+        throw new Error("PDF-Library nicht geladen. Bitte Seite neu laden.");
+      }
+
+      const { PDFDocument } = window.PDFLib;
       const pdfDoc = await PDFDocument.create();
 
       for (const page of this.pages) {
+        this.log("Verarbeite Seite im Format: " + page.format);
+
         const imgData = page.src.split(",")[1];
         const imgBytes = Uint8Array.from(atob(imgData), (c) => c.charCodeAt(0));
         const jpgImage = await pdfDoc.embedJpg(imgBytes);
 
-        const sizeKey = page.format;
-        const pageSize = PageSizes[sizeKey];
+        // EIGENE DIN-Definition (unabhängig von PDFLib.PageSizes)
+        const pageSize = this.DIN_POINTS[page.format];
+        if (!pageSize) {
+          throw new Error("Unbekanntes Format: " + page.format);
+        }
+
         const pdfPage = pdfDoc.addPage(pageSize);
 
         const pw = pageSize[0];
@@ -662,8 +731,9 @@ const app = {
 
       const pdfBytes = await pdfDoc.save();
       const blob = new Blob([pdfBytes], { type: "application/pdf" });
+      this.log("PDF erzeugt: " + Math.round(blob.size / 1024) + " KB");
 
-      // Speicherort auswählen (File System Access API)
+      // Speicherort auswählen
       if ("showSaveFilePicker" in window) {
         try {
           const handle = await window.showSaveFilePicker({
@@ -676,14 +746,16 @@ const app = {
           const writable = await handle.createWritable();
           await writable.write(blob);
           await writable.close();
+          this.log("PDF gespeichert");
           this.hideProcessing();
           return;
         } catch (err) {
           if (err.name === "AbortError") {
+            this.log("Speichern abgebrochen");
             this.hideProcessing();
             return;
           }
-          console.warn("File Picker fehlgeschlagen, nutze Fallback:", err);
+          this.log("File Picker fehlgeschlagen: " + err.message, "warn");
         }
       }
 
@@ -696,9 +768,11 @@ const app = {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+      this.log("PDF heruntergeladen");
       this.hideProcessing();
 
     } catch (err) {
+      this.log("PDF-Export Fehler: " + err.message, "err");
       console.error(err);
       this.hideProcessing();
       alert("Fehler beim PDF-Export: " + err.message);
