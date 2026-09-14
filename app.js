@@ -16,7 +16,7 @@ const app = {
     A6: [1240, 1748]
   },
 
-  // DIN-Größen in PDF-Punkten (72 DPI) - eigene Definition, unabhängig von pdf-lib
+  // DIN-Größen in PDF-Punkten (72 DPI)
   DIN_POINTS: {
     A3: [841.89, 1190.55],
     A4: [595.28, 841.89],
@@ -35,9 +35,10 @@ const app = {
     this.canvas.addEventListener("touchmove", (e) => { e.preventDefault(); this.handleMove(e.touches[0]); });
     this.canvas.addEventListener("touchend", () => this.handleEnd());
 
+    this.loadSettings();
     this.log("App init");
-    this.log("PDFLib verfügbar: " + (typeof window.PDFLib !== "undefined"));
-    this.log("OpenCV verfügbar: " + (typeof window.cv !== "undefined"));
+    this.log("PDFLib: " + (typeof window.PDFLib !== "undefined"));
+    this.log("OpenCV: " + (typeof window.cv !== "undefined"));
     this.updateStatus();
   },
 
@@ -46,7 +47,6 @@ const app = {
     const entry = `[${time}] ${msg}`;
     this.debugLogs.push({ text: entry, type });
     console.log(entry);
-
     const debugBody = document.getElementById("debugBody");
     if (debugBody) {
       const div = document.createElement("div");
@@ -95,6 +95,31 @@ const app = {
     if (el) el.style.display = "none";
   },
 
+  // ===== EINSTELLUNGEN =====
+  saveSettings() {
+    const nameInput = document.getElementById("defaultName");
+    const name = nameInput ? nameInput.value.trim() : "Noten";
+    localStorage.setItem("scanner_defaultName", name);
+    this.log("Einstellungen gespeichert: " + name);
+    alert("✅ Einstellungen gespeichert!\nStandard-Name: " + name + "_YYYY-MM-DD.pdf");
+  },
+
+  loadSettings() {
+    const saved = localStorage.getItem("scanner_defaultName");
+    if (saved) {
+      const input = document.getElementById("defaultName");
+      if (input) input.value = saved;
+      this.log("Einstellungen geladen: " + saved);
+    }
+  },
+
+  getDefaultFileName() {
+    const base = localStorage.getItem("scanner_defaultName") || "Noten";
+    const date = new Date().toISOString().slice(0, 10);
+    return `${base}_${date}.pdf`;
+  },
+
+  // ===== BILD AUFNAHME =====
   startCamera() {
     const input = document.createElement("input");
     input.type = "file";
@@ -111,7 +136,7 @@ const app = {
   handleFileSelect(e) {
     const file = e.target.files[0];
     if (!file) return;
-    this.log("Datei ausgewählt: " + file.name + " (" + Math.round(file.size / 1024) + " KB)");
+    this.log("Datei: " + file.name + " (" + Math.round(file.size / 1024) + " KB)");
     const reader = new FileReader();
     reader.onload = (evt) => this.loadImage(evt.target.result);
     reader.readAsDataURL(file);
@@ -120,27 +145,23 @@ const app = {
   loadImage(src) {
     const img = new Image();
     img.onload = () => {
-      this.log("Bild geladen: " + img.width + "x" + img.height);
+      this.log("Bild: " + img.width + "x" + img.height);
       this.showProcessing("Erkenne Dokument...");
       setTimeout(() => this.autoDetect(img), 100);
     };
     img.onerror = () => {
-      this.log("Bild konnte nicht geladen werden", "err");
+      this.log("Bild-Ladefehler", "err");
       alert("Bild konnte nicht geladen werden");
     };
     img.src = src;
   },
 
+  // ===== AUTO DETECT (Ecken finden) =====
   autoDetect(img) {
     if (!this.cvReady || !window.cv || !window.cv.imread) {
-      this.log("OpenCV nicht bereit, nutze Canvas-Fallback");
+      this.log("OpenCV nicht bereit, Canvas-Fallback");
       this.hideProcessing();
-      this.openEditor(img, [
-        { x: 50, y: 50 },
-        { x: img.width - 50, y: 50 },
-        { x: img.width - 50, y: img.height - 50 },
-        { x: 50, y: img.height - 50 }
-      ]);
+      this.openEditor(img, this.defaultCorners(img));
       return;
     }
 
@@ -205,15 +226,10 @@ const app = {
       blurred.delete(); edges.delete(); contours.delete(); hierarchy.delete();
 
       if (!docContour) {
-        docContour = [
-          { x: 50, y: 50 },
-          { x: img.width - 50, y: 50 },
-          { x: img.width - 50, y: img.height - 50 },
-          { x: 50, y: img.height - 50 }
-        ];
+        docContour = this.defaultCorners(img);
         this.log("Kein Dokument erkannt, nutze Bildränder");
       } else {
-        this.log("Dokument erkannt mit " + maxArea + " px²");
+        this.log("Dokument erkannt: " + Math.round(maxArea) + " px²");
       }
 
       this.hideProcessing();
@@ -222,13 +238,17 @@ const app = {
     } catch (err) {
       this.log("Auto-Detect Fehler: " + err.message, "err");
       this.hideProcessing();
-      this.openEditor(img, [
-        { x: 50, y: 50 },
-        { x: img.width - 50, y: 50 },
-        { x: img.width - 50, y: img.height - 50 },
-        { x: 50, y: img.height - 50 }
-      ]);
+      this.openEditor(img, this.defaultCorners(img));
     }
+  },
+
+  defaultCorners(img) {
+    return [
+      { x: 50, y: 50 },
+      { x: img.width - 50, y: 50 },
+      { x: img.width - 50, y: img.height - 50 },
+      { x: 50, y: img.height - 50 }
+    ];
   },
 
   orderPoints(pts) {
@@ -242,31 +262,20 @@ const app = {
     return rect;
   },
 
-  detectDIN(width, height) {
-    const ratio = Math.max(width, height) / Math.min(width, height);
-    const area = width * height;
-    if (Math.abs(ratio - 1.414) < 0.2) {
-      if (area > 30000000) return "A3";
-      if (area > 15000000) return "A4";
-      if (area > 8000000) return "A5";
-      return "A6";
-    }
-    return "A4";
-  },
-
+  // ===== EDITOR =====
   openEditor(img, corners) {
+    // IMMER A4 als Default, egal was erkannt wurde
     this.currentEdit = {
       image: img,
       corners: corners,
       rotation: 0,
-      detectedFormat: this.detectDIN(
-        Math.hypot(corners[1].x - corners[0].x, corners[1].y - corners[0].y),
-        Math.hypot(corners[3].x - corners[0].x, corners[3].y - corners[0].y)
-      )
+      detectedFormat: "A4"
     };
-    this.log("Editor geöffnet, Format: " + this.currentEdit.detectedFormat);
+    this.log("Editor geöffnet (immer A4)");
+
     const select = document.getElementById("dinSelect");
-    if (select) select.value = "auto";
+    if (select) select.value = "A4";
+
     document.getElementById("startScreen").style.display = "none";
     document.getElementById("editorScreen").style.display = "flex";
     this.drawEditor();
@@ -382,13 +391,7 @@ const app = {
 
   resetCorners() {
     if (!this.currentEdit) return;
-    const img = this.currentEdit.image;
-    this.currentEdit.corners = [
-      { x: 50, y: 50 },
-      { x: img.width - 50, y: 50 },
-      { x: img.width - 50, y: img.height - 50 },
-      { x: 50, y: img.height - 50 }
-    ];
+    this.currentEdit.corners = this.defaultCorners(this.currentEdit.image);
     this.drawEditor();
   },
 
@@ -414,7 +417,7 @@ const app = {
     setTimeout(() => {
       try {
         const result = this.transformAndEnhance();
-        this.log("Transformation erfolgreich: " + result.format + " " + result.width + "x" + result.height);
+        this.log("OK: " + result.format + " " + result.width + "x" + result.height);
 
         this.pages.push({
           id: Date.now(),
@@ -431,7 +434,7 @@ const app = {
         document.getElementById("exportBar").style.display = "flex";
         this.hideProcessing();
       } catch (err) {
-        this.log("Fehler in confirmPage: " + err.message, "err");
+        this.log("Fehler: " + err.message, "err");
         console.error(err);
         this.hideProcessing();
         alert("Fehler bei Verarbeitung: " + err.message);
@@ -440,29 +443,22 @@ const app = {
   },
 
   transformAndEnhance() {
-    const { image, corners, detectedFormat } = this.currentEdit;
+    const { image, corners } = this.currentEdit;
     const modeSelect = document.getElementById("modeSelect");
     const dinSelect = document.getElementById("dinSelect");
     const mode = modeSelect ? modeSelect.value : "scores";
-    const dinValue = dinSelect ? dinSelect.value : "auto";
-    const format = dinValue === "auto" ? detectedFormat : dinValue;
+    const format = dinSelect ? dinSelect.value : "A4";
     const [targetW, targetH] = this.DIN_SIZES[format];
 
-    this.log("transformAndEnhance: mode=" + mode + " format=" + format + " target=" + targetW + "x" + targetH);
+    this.log("Transform: mode=" + mode + " format=" + format);
 
-    // Versuche OpenCV
     if (this.cvReady && window.cv && window.cv.imread) {
       try {
-        const result = this.transformWithOpenCV(image, corners, targetW, targetH, format, mode);
-        this.log("OpenCV-Transformation erfolgreich");
-        return result;
+        return this.transformWithOpenCV(image, corners, targetW, targetH, format, mode);
       } catch (err) {
-        this.log("OpenCV fehlgeschlagen: " + err.message + ", nutze Canvas-Fallback", "warn");
+        this.log("OpenCV fail: " + err.message + ", Fallback", "warn");
       }
     }
-
-    // Canvas-Fallback
-    this.log("Nutze Canvas-Fallback");
     return this.transformWithCanvas(image, corners, targetW, targetH, format, mode);
   },
 
@@ -528,9 +524,7 @@ const app = {
   },
 
   transformWithCanvas(image, corners, targetW, targetH, format, mode) {
-    this.log("Canvas-Fallback: Zuschneiden auf " + targetW + "x" + targetH);
-
-    // Bounding Box der Ecken
+    this.log("Canvas-Fallback");
     const xs = corners.map((c) => c.x);
     const ys = corners.map((c) => c.y);
     const minX = Math.max(0, Math.floor(Math.min(...xs)));
@@ -540,14 +534,12 @@ const app = {
     const cropW = Math.max(1, maxX - minX);
     const cropH = Math.max(1, maxY - minY);
 
-    // Quell-Canvas: Zuschneiden
     const srcCanvas = document.createElement("canvas");
     srcCanvas.width = cropW;
     srcCanvas.height = cropH;
     const srcCtx = srcCanvas.getContext("2d");
     srcCtx.drawImage(image, minX, minY, cropW, cropH, 0, 0, cropW, cropH);
 
-    // Ziel-Canvas: DIN-Größe
     const dstCanvas = document.createElement("canvas");
     dstCanvas.width = targetW;
     dstCanvas.height = targetH;
@@ -689,35 +681,30 @@ const app = {
     if (bar) bar.style.display = "none";
   },
 
+  // ===== PDF EXPORT =====
   async exportPDF() {
     if (this.pages.length === 0) return;
     this.showProcessing("Erzeuge PDF...");
-    this.log("PDF-Export gestartet, Seiten: " + this.pages.length);
+    this.log("PDF-Export: " + this.pages.length + " Seiten");
 
     try {
-      // Prüfe ob PDFLib verfügbar
       if (typeof window.PDFLib === "undefined") {
-        throw new Error("PDF-Library nicht geladen. Bitte Seite neu laden.");
+        throw new Error("PDF-Library nicht geladen. Seite neu laden.");
       }
 
       const { PDFDocument } = window.PDFLib;
       const pdfDoc = await PDFDocument.create();
 
       for (const page of this.pages) {
-        this.log("Verarbeite Seite im Format: " + page.format);
-
+        this.log("PDF Seite: " + page.format);
         const imgData = page.src.split(",")[1];
         const imgBytes = Uint8Array.from(atob(imgData), (c) => c.charCodeAt(0));
         const jpgImage = await pdfDoc.embedJpg(imgBytes);
 
-        // EIGENE DIN-Definition (unabhängig von PDFLib.PageSizes)
         const pageSize = this.DIN_POINTS[page.format];
-        if (!pageSize) {
-          throw new Error("Unbekanntes Format: " + page.format);
-        }
+        if (!pageSize) throw new Error("Unbekanntes Format: " + page.format);
 
         const pdfPage = pdfDoc.addPage(pageSize);
-
         const pw = pageSize[0];
         const ph = pageSize[1];
         const scale = Math.min(pw / jpgImage.width, ph / jpgImage.height);
@@ -731,13 +718,17 @@ const app = {
 
       const pdfBytes = await pdfDoc.save();
       const blob = new Blob([pdfBytes], { type: "application/pdf" });
-      this.log("PDF erzeugt: " + Math.round(blob.size / 1024) + " KB");
+      this.log("PDF Größe: " + Math.round(blob.size / 1024) + " KB");
 
-      // Speicherort auswählen
+      const fileName = this.getDefaultFileName();
+      this.log("Dateiname: " + fileName);
+
+      // File System Access API mit startIn
       if ("showSaveFilePicker" in window) {
         try {
           const handle = await window.showSaveFilePicker({
-            suggestedName: `Noten_${new Date().toISOString().slice(0, 10)}.pdf`,
+            suggestedName: fileName,
+            startIn: "documents",  // Vorschlag: Dokumente-Ordner
             types: [{
               description: "PDF-Dateien",
               accept: { "application/pdf": [".pdf"] }
@@ -751,19 +742,19 @@ const app = {
           return;
         } catch (err) {
           if (err.name === "AbortError") {
-            this.log("Speichern abgebrochen");
+            this.log("Abgebrochen");
             this.hideProcessing();
             return;
           }
-          this.log("File Picker fehlgeschlagen: " + err.message, "warn");
+          this.log("File Picker Fehler: " + err.message, "warn");
         }
       }
 
-      // Fallback: Normaler Download
+      // Fallback Download
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `Noten_${new Date().toISOString().slice(0, 10)}.pdf`;
+      a.download = fileName;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -772,7 +763,7 @@ const app = {
       this.hideProcessing();
 
     } catch (err) {
-      this.log("PDF-Export Fehler: " + err.message, "err");
+      this.log("PDF-Fehler: " + err.message, "err");
       console.error(err);
       this.hideProcessing();
       alert("Fehler beim PDF-Export: " + err.message);
