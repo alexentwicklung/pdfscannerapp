@@ -19,9 +19,7 @@
       --danger: #ef4444;
       --warning: #f59e0b;
     }
-    
     * { margin: 0; padding: 0; box-sizing: border-box; touch-action: manipulation; }
-    
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       background: var(--bg);
@@ -31,8 +29,6 @@
       display: flex;
       flex-direction: column;
     }
-    
-    /* Header */
     .header {
       background: var(--surface);
       padding: 12px 16px;
@@ -42,9 +38,7 @@
       align-items: center;
       z-index: 10;
     }
-    
     .header h1 { font-size: 18px; font-weight: 600; }
-    
     .status-badge {
       font-size: 11px;
       padding: 4px 10px;
@@ -53,18 +47,13 @@
       color: var(--text-muted);
       font-weight: 500;
     }
-    
     .status-badge.ready { background: rgba(34,197,94,0.2); color: var(--success); }
     .status-badge.offline { background: rgba(245,158,11,0.2); color: var(--warning); }
-    
-    /* Main Content */
     .main {
       flex: 1;
       overflow-y: auto;
       position: relative;
     }
-    
-    /* Start Screen */
     .start-screen {
       display: flex;
       flex-direction: column;
@@ -74,11 +63,9 @@
       padding: 20px;
       text-align: center;
     }
-    
     .start-screen .icon { font-size: 64px; margin-bottom: 16px; }
     .start-screen h2 { font-size: 22px; margin-bottom: 8px; }
     .start-screen p { color: var(--text-muted); margin-bottom: 32px; max-width: 280px; }
-    
     .btn {
       display: inline-flex;
       align-items: center;
@@ -95,23 +82,18 @@
       max-width: 280px;
       margin-bottom: 12px;
     }
-    
     .btn-primary {
       background: var(--primary);
       color: white;
     }
     .btn-primary:hover { background: var(--primary-hover); }
     .btn-primary:active { transform: scale(0.98); }
-    
     .btn-secondary {
       background: var(--surface);
       color: var(--text);
       border: 1px solid var(--border);
     }
-    
-    /* Editor Screen */
     .editor-screen { display: none; height: 100%; flex-direction: column; }
-    
     .editor-toolbar {
       background: var(--surface);
       padding: 12px 16px;
@@ -121,7 +103,6 @@
       overflow-x: auto;
       align-items: center;
     }
-    
     .editor-toolbar select, .editor-toolbar button {
       background: var(--bg);
       color: var(--text);
@@ -131,15 +112,12 @@
       font-size: 14px;
       white-space: nowrap;
     }
-    
     .editor-toolbar button {
       background: var(--primary);
       border: none;
       font-weight: 600;
     }
-    
     .editor-toolbar button.danger { background: var(--danger); }
-    
     .canvas-container {
       flex: 1;
       position: relative;
@@ -149,13 +127,11 @@
       align-items: center;
       justify-content: center;
     }
-    
     #editorCanvas {
       max-width: 100%;
       max-height: 100%;
       touch-action: none;
     }
-    
     .corner-hint {
       position: absolute;
       bottom: 16px;
@@ -168,8 +144,6 @@
       color: var(--text-muted);
       pointer-events: none;
     }
-    
-    /* Pages Strip */
     .pages-strip {
       background: var(--surface);
       border-top: 1px solid var(--border);
@@ -180,7 +154,6 @@
       align-items: center;
       min-height: 90px;
     }
-    
     .page-thumb {
       position: relative;
       width: 60px;
@@ -192,10 +165,8 @@
       flex-shrink: 0;
       background: var(--bg);
     }
-    
     .page-thumb.active { border-color: var(--primary); }
     .page-thumb img { width: 100%; height: 100%; object-fit: cover; }
-    
     .page-thumb .page-num {
       position: absolute;
       bottom: 2px;
@@ -205,7 +176,6 @@
       padding: 1px 4px;
       border-radius: 3px;
     }
-    
     .page-thumb .delete-btn {
       position: absolute;
       top: 2px;
@@ -223,7 +193,6 @@
       transition: opacity 0.2s;
     }
     .page-thumb:hover .delete-btn { opacity: 1; }
-    
     .add-page-btn {
       width: 60px;
       height: 80px;
@@ -237,8 +206,6 @@
       cursor: pointer;
       flex-shrink: 0;
     }
-    
-    /* Preview Modal */
     .modal-overlay {
       display: none;
       position: fixed;
@@ -247,7 +214,6 @@
       z-index: 100;
       flex-direction: column;
     }
-    
     .modal-header {
       padding: 16px;
       display: flex;
@@ -255,7 +221,6 @@
       align-items: center;
       background: var(--surface);
     }
-    
     .modal-content {
       flex: 1;
       display: flex;
@@ -263,10 +228,7 @@
       justify-content: center;
       padding: 20px;
     }
-    
     .modal-content img { max-width: 100%; max-height: 100%; object-fit: contain; }
-    
-    /* Processing Overlay */
     .processing {
       display: none;
       position: fixed;
@@ -278,7 +240,6 @@
       justify-content: center;
       gap: 16px;
     }
-    
     .spinner {
       width: 48px;
       height: 48px;
@@ -287,10 +248,7 @@
       border-radius: 50%;
       animation: spin 1s linear infinite;
     }
-    
     @keyframes spin { to { transform: rotate(360deg); } }
-    
-    /* Export Actions */
     .export-bar {
       display: none;
       padding: 12px 16px;
@@ -298,42 +256,85 @@
       border-top: 1px solid var(--border);
       gap: 10px;
     }
-    
     .export-bar .btn { margin: 0; max-width: none; }
-    
-    /* Hidden Inputs */
     #fileInput, #cameraInput { display: none; }
-    
-    /* Scrollbar */
     ::-webkit-scrollbar { height: 6px; width: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* ===== DEBUG PANEL ===== */
+    .debug-panel {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(0,0,0,0.92);
+      border-top: 2px solid var(--danger);
+      max-height: 200px;
+      overflow-y: auto;
+      z-index: 300;
+      font-family: monospace;
+      font-size: 11px;
+      display: none;
+      flex-direction: column;
+    }
+    .debug-panel.open { display: flex; }
+    .debug-header {
+      padding: 6px 12px;
+      background: var(--danger);
+      color: white;
+      font-weight: bold;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+    }
+    .debug-body {
+      padding: 8px 12px;
+      color: #22c55e;
+      line-height: 1.5;
+      max-height: 160px;
+      overflow-y: auto;
+    }
+    .debug-body .err { color: #ef4444; }
+    .debug-body .warn { color: #f59e0b; }
+    .debug-toggle {
+      position: fixed;
+      bottom: 8px;
+      right: 8px;
+      z-index: 301;
+      background: var(--danger);
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0.7;
+    }
   </style>
+<base target="_blank">
 </head>
 <body>
 
   <div class="header">
     <h1>🎼 Noten Scanner</h1>
-    <span class="status-badge" id="statusBadge">Lade OpenCV...</span>
+    <span class="status-badge" id="statusBadge">Lade...</span>
   </div>
 
   <div class="main" id="mainContainer">
-    
-    <!-- Start Screen -->
     <div class="start-screen" id="startScreen">
       <div class="icon">📄</div>
       <h2>Dokument scannen</h2>
       <p>Fotografiere deine Noten, ich erkenne automatisch die Kanten und erzeuge ein sauberes PDF.</p>
-      <button class="btn btn-primary" onclick="app.startCamera()">
-        📷 Kamera öffnen
-      </button>
-      <button class="btn btn-secondary" onclick="document.getElementById('fileInput').click()">
-        🖼️ Bild auswählen
-      </button>
+      <button class="btn btn-primary" onclick="app.startCamera()">📷 Kamera öffnen</button>
+      <button class="btn btn-secondary" onclick="document.getElementById('fileInput').click()">🖼️ Bild auswählen</button>
       <input type="file" id="fileInput" accept="image/*" onchange="app.handleFileSelect(event)">
     </div>
 
-    <!-- Editor Screen -->
     <div class="editor-screen" id="editorScreen">
       <div class="editor-toolbar">
         <select id="dinSelect" onchange="app.onDinChange()">
@@ -343,39 +344,32 @@
           <option value="A5">A5</option>
           <option value="A6">A6</option>
         </select>
-        
         <select id="modeSelect">
           <option value="scores">🎼 Noten-Modus</option>
           <option value="document">📄 Dokument (SW)</option>
           <option value="photo">🖼️ Foto (Farbe)</option>
         </select>
-        
         <button onclick="app.resetCorners()">🔄 Reset</button>
         <button onclick="app.rotateImage()">↻ 90°</button>
         <button class="danger" onclick="app.cancelEdit()">✕ Abbrechen</button>
         <button onclick="app.confirmPage()">✓ Übernehmen</button>
       </div>
-      
       <div class="canvas-container" id="canvasContainer">
         <canvas id="editorCanvas"></canvas>
-        <div class="corner-hint">Ecken verschieben zum Korrgieren</div>
+        <div class="corner-hint">Ecken verschieben zum Korrigieren</div>
       </div>
     </div>
-
   </div>
 
-  <!-- Pages Strip -->
   <div class="pages-strip" id="pagesStrip">
     <div class="add-page-btn" onclick="app.addPage()">+</div>
   </div>
 
-  <!-- Export Bar -->
   <div class="export-bar" id="exportBar">
-    <button class="btn btn-primary" onclick="app.exportPDF()">📄 PDF erstellen</button>
+    <button class="btn btn-primary" onclick="app.exportPDF()">💾 PDF speichern unter...</button>
     <button class="btn btn-secondary" onclick="app.clearAll()">🗑️ Alle löschen</button>
   </div>
 
-  <!-- Preview Modal -->
   <div class="modal-overlay" id="previewModal">
     <div class="modal-header">
       <h3>Vorschau</h3>
@@ -386,26 +380,38 @@
     </div>
   </div>
 
-  <!-- Processing Overlay -->
   <div class="processing" id="processing">
     <div class="spinner"></div>
     <p id="processingText">Verarbeite...</p>
   </div>
 
-  <!-- Scripts -->
-  <script src="https://docs.opencv.org/4.8.0/opencv.js" async onload="app.onOpenCvReady()"></script>
-  <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+  <!-- Debug Panel -->
+  <button class="debug-toggle" onclick="app.toggleDebug()" title="Debug">🐛</button>
+  <div class="debug-panel" id="debugPanel">
+    <div class="debug-header" onclick="app.toggleDebug()">
+      <span>Debug Log</span>
+      <span>✕</span>
+    </div>
+    <div class="debug-body" id="debugBody">
+      App gestartet...
+    </div>
+  </div>
+
+  <!-- Scripts: OpenCV optional (async), pdf-lib lokal -->
+  <script src="./opencv.js" async onload="app.onOpenCvReady()"></script>
+  <script src="./pdf-lib.min.js"></script>
   <script src="./app.js"></script>
-  
+
   <script>
-    // Register Service Worker
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./sw.js').catch(err => console.log('SW failed', err));
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js', { scope: './' })
+          .then(reg => console.log('SW registriert'))
+          .catch(err => console.error('SW Fehler:', err));
+      });
     }
-    
-    // Online/Offline detection
-    window.addEventListener('online', () => app.updateStatus());
-    window.addEventListener('offline', () => app.updateStatus());
+    window.addEventListener('online', () => app.updateStatus && app.updateStatus());
+    window.addEventListener('offline', () => app.updateStatus && app.updateStatus());
   </script>
 </body>
 </html>
